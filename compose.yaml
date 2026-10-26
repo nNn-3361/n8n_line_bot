@@ -1,0 +1,158 @@
+name: lnta
+
+services:
+  n8n:
+    image: n8nio/n8n:2.44.6@sha256:d02752c6ab446ae9db8deec2f9cc887c378f77cdcad31650814df936b7386dfb
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Taipei}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Taipei}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:8080/}
+      N8N_PROXY_HOPS: ${N8N_PROXY_HOPS:-1}
+      N8N_PAYLOAD_SIZE_MAX: ${N8N_PAYLOAD_SIZE_MAX:-2}
+      N8N_CONCURRENCY_PRODUCTION_LIMIT: ${N8N_CONCURRENCY_PRODUCTION_LIMIT:-1}
+      N8N_DATA_TABLES_MAX_SIZE_BYTES: ${N8N_DATA_TABLES_MAX_SIZE_BYTES:-52428800}
+      EXECUTIONS_TIMEOUT: ${EXECUTIONS_TIMEOUT:-120}
+      EXECUTIONS_TIMEOUT_MAX: ${EXECUTIONS_TIMEOUT_MAX:-300}
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: ${EXECUTIONS_DATA_SAVE_ON_SUCCESS:-none}
+      EXECUTIONS_DATA_SAVE_ON_ERROR: ${EXECUTIONS_DATA_SAVE_ON_ERROR:-none}
+      EXECUTIONS_DATA_SAVE_ON_PROGRESS: ${EXECUTIONS_DATA_SAVE_ON_PROGRESS:-false}
+      EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: ${EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS:-false}
+      EXECUTIONS_DATA_PRUNE: ${EXECUTIONS_DATA_PRUNE:-true}
+      EXECUTIONS_DATA_MAX_AGE: ${EXECUTIONS_DATA_MAX_AGE:-168}
+      EXECUTIONS_DATA_PRUNE_MAX_COUNT: ${EXECUTIONS_DATA_PRUNE_MAX_COUNT:-1000}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: ${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS:-true}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: ${N8N_BLOCK_ENV_ACCESS_IN_NODE:-true}
+      N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES: ${N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES:-true}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      N8N_COMMUNITY_PACKAGES_ENABLED: "false"
+      N8N_UNVERIFIED_PACKAGES_ENABLED: "false"
+      N8N_PYTHON_ENABLED: "false"
+      N8N_RUNNERS_TASK_TIMEOUT: "60"
+      N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES: "268435456"
+      N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES: "1000"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_LOG_LEVEL: warn
+      N8N_LOG_OUTPUT: console
+    ports:
+      - "127.0.0.1:5678:5678"
+    expose:
+      - "5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - app_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider --quiet http://127.0.0.1:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    mem_limit: 1g
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  webhook-verifier:
+    profiles: ["line"]
+    image: n8nio/n8n:2.44.6@sha256:d02752c6ab446ae9db8deec2f9cc887c378f77cdcad31650814df936b7386dfb
+    restart: unless-stopped
+    entrypoint: ["node", "/app/src/verifier/line-webhook-verifier.js"]
+    environment:
+      PORT: "3000"
+      LINE_CHANNEL_SECRET_FILE: /run/secrets/line_channel_secret
+      LINE_OWNER_USER_ID_FILE: /run/secrets/line_owner_user_id
+      N8N_INTERNAL_WEBHOOK_TOKEN_FILE: /run/secrets/n8n_internal_webhook_token
+      LINE_DOWNSTREAM_URL: ${LINE_DOWNSTREAM_URL:-http://n8n:5678/webhook/line-events-internal}
+    expose:
+      - "3000"
+    volumes:
+      - ./src/verifier:/app/src/verifier:ro
+    secrets:
+      - line_channel_secret
+      - line_owner_user_id
+      - n8n_internal_webhook_token
+    networks:
+      - app_net
+    depends_on:
+      n8n:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.status===204?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 128m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+
+  webhook-proxy:
+    image: nginx:1.30.6-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951
+    restart: unless-stopped
+    depends_on:
+      n8n:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./config/reverse-proxy/${LNTA_PROXY_CONFIG:-nginx.conf}:/etc/nginx/nginx.conf:ro
+    networks:
+      - app_net
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 128m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+
+networks:
+  app_net:
+    driver: bridge
+
+volumes:
+  n8n_data:
+    name: lnta_n8n_data
+
+secrets:
+  line_channel_secret:
+    file: ./secrets/line_channel_secret
+  line_owner_user_id:
+    file: ./secrets/line_owner_user_id
+  n8n_internal_webhook_token:
+    file: ./secrets/n8n_internal_webhook_token

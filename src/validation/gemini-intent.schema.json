@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LineTaskAssistantIntent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent",
+    "task_id",
+    "title",
+    "due_at",
+    "query_range",
+    "needs_confirmation",
+    "question"
+  ],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "create_task",
+        "list_tasks",
+        "complete_task",
+        "cancel_task",
+        "help",
+        "unknown"
+      ]
+    },
+    "task_id": {
+      "type": ["string", "null"],
+      "pattern": "^T[0-9A-F]{12}$"
+    },
+    "title": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "due_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "query_range": {
+      "type": ["string", "null"],
+      "enum": ["today", "tomorrow", "pending", null]
+    },
+    "needs_confirmation": {
+      "type": "boolean"
+    },
+    "question": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    }
+  }
+}

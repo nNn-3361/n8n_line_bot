@@ -1,0 +1,13 @@
+{
+  "name": "line-n8n-task-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Validation core and local infrastructure for the LINE n8n task assistant V0.",
+  "scripts": {
+    "test": "node --test tests/validation/*.test.js tests/security/*.test.js",
+    "verify:publication": "bash scripts/verification/check-publication-safety.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

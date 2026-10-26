@@ -1,0 +1,51 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.agekey
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.secrets
+*.token
+.netrc
+.npmrc
+.yarnrc
+.pnpmrc
+
+# Runtime data and backups
+data/
+backups/
+restore-staging/
+.n8n/
+n8n_data/
+credentials/
+*.credentials.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.backup
+*.dump
+*.sql.gz
+
+# n8n exports and execution artifacts that may contain sensitive payloads
+*.execution.json
+workflows/private/
+
+# JavaScript tooling
+node_modules/
+coverage/
+
+# Logs and editor/OS files
+*.log
+.DS_Store
+.idea/
+.vscode/
+.codex/
+.agents/
